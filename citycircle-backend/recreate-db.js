@@ -11,9 +11,9 @@ const db = new sqlite3.Database(dbPath);
 
 db.exec(schema, (err) => {
   if (err) {
-    console.error("❌ Schema init failed:", err);
   } else {
-    console.log("✅ Database created from schema.sql");
   }
   db.close();
 });
+
+

@@ -1,7 +1,6 @@
 // Migration script to add hybrid system tables (CIV + DVS)
 const db = require("./db");
 
-console.log("Starting hybrid system migration...");
 
 const migrations = [
     // Check-in sessions
@@ -67,8 +66,6 @@ const migrations = [
 // Run migrations sequentially
 function runMigrations(index) {
     if (index >= migrations.length) {
-        console.log(`\nMigration complete!`);
-        console.log(`✅ All migrations successful`);
         process.exit(0);
         return;
     }
@@ -76,10 +73,8 @@ function runMigrations(index) {
     const sql = migrations[index];
     db.run(sql, (err) => {
         if (err) {
-            console.error(`Migration ${index + 1} failed:`, err.message);
             process.exit(1);
         } else {
-            console.log(`Migration ${index + 1} completed`);
             // Run next migration
             runMigrations(index + 1);
         }
@@ -88,3 +83,5 @@ function runMigrations(index) {
 
 // Start migrations
 runMigrations(0);
+
+

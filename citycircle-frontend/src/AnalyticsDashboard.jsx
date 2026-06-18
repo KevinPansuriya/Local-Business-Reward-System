@@ -4,7 +4,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 import { fetchCustomerAnalytics, fetchStoreAnalytics, fetchSystemAnalytics } from "./api";
 import io from "socket.io-client";
 
-const COLORS = ["#2563eb", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+const COLORS = ["var(--cc-primary)", "var(--cc-success)", "var(--cc-warning)", "var(--cc-danger)", "var(--cc-info)"];
 
 export default function AnalyticsDashboard({ token, userRole, userId, storeId }) {
     const [analytics, setAnalytics] = useState(null);
@@ -48,9 +48,7 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
             let data;
             if (role === "user" || role === "customer") {
                 if (!token || !userId) throw new Error("Missing token/userId for customer analytics");
-                console.log(`[AnalyticsDashboard] Loading customer analytics for userId: ${userId}, period: ${period}`);
                 data = await fetchCustomerAnalytics(token, userId, period);
-                console.log(`[AnalyticsDashboard] Received data:`, data);
             } else if (role === "store") {
                 if (!token) throw new Error("Missing token for store analytics");
                 data = await fetchStoreAnalytics(token, period);
@@ -62,7 +60,6 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
           
             setAnalytics(data);
         } catch (e) {
-            console.error("[AnalyticsDashboard] Error loading analytics:", e);
             setError(e?.message || String(e));
             setAnalytics(null);
         } finally {
@@ -76,7 +73,7 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
         return (
           <div style={card}>
             <p>No analytics data returned.</p>
-            <p style={{ fontSize: 12, color: "#666" }}>
+            <p style={{ fontSize: 12, color: "var(--cc-muted)" }}>
               role={String(userRole)} userId={String(userId)} storeId={String(storeId)}
             </p>
           </div>
@@ -112,7 +109,7 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                 {update.type === "earn" && (
                                     <>
                                         <span>{update.userName} earned {update.loopsEarned} Loops at {update.storeName}</span>
-                                        <span style={{ fontSize: 11, color: "#666" }}>
+                                        <span style={{ fontSize: 11, color: "var(--cc-muted)" }}>
                                             ${(update.amountCents / 100).toFixed(2)}
                                         </span>
                                     </>
@@ -131,24 +128,14 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                 <>
                     <div style={kpiGrid}>
                         <KPICard
-                            title="Total Transactions"
-                            value={analytics.overview.total_transactions || 0}
-                            subtitle={`${period} days`}
-                        />
-                        <KPICard
-                            title="Total Spent"
-                            value={`$${((analytics.overview.total_spent_cents || 0) / 100).toFixed(2)}`}
-                            subtitle="All stores"
+                            title="Total Visits"
+                            value={analytics.overview.total_visits || 0}
+                            subtitle={period === "0" ? "All time" : `Last ${period} days`}
                         />
                         <KPICard
                             title="Loops Earned"
                             value={analytics.overview.total_loops_earned || 0}
                             subtitle={period === "0" ? "All time" : `Last ${period} days`}
-                        />
-                        <KPICard
-                            title="Avg Transaction"
-                            value={`$${((analytics.overview.avg_transaction_cents || 0) / 100).toFixed(2)}`}
-                            subtitle="Per visit"
                         />
                         <KPICard
                             title="Stores Visited"
@@ -167,7 +154,7 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                         <div style={card}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                                 <h3 style={{ marginTop: 0, marginBottom: 0 }}>Store Performance</h3>
-                                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                                <div style={{ fontSize: 13, color: "var(--cc-muted)" }}>
                                     {analytics.storeBreakdown.length} {analytics.storeBreakdown.length === 1 ? 'store' : 'stores'}
                                 </div>
                             </div>
@@ -175,65 +162,68 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                             {/* Store Cards Grid */}
                             <div style={storeGrid}>
                                 {analytics.storeBreakdown
-                                    .sort((a, b) => (b.total_spent_cents || 0) - (a.total_spent_cents || 0))
+                                    .sort((a, b) => (b.visit_count || 0) - (a.visit_count || 0))
                                     .map((store, idx) => {
-                                        const spent = (store.total_spent_cents || 0) / 100;
                                         const loops = store.total_loops_earned || 0;
                                         const visits = store.visit_count || 0;
-                                        const avgSpent = visits > 0 ? spent / visits : 0;
+                                        const avgLoops = visits > 0 ? Math.round(loops / visits) : 0;
                                         
-                                        // Calculate percentage of total spending
-                                        const totalSpent = analytics.storeBreakdown.reduce((sum, s) => sum + ((s.total_spent_cents || 0) / 100), 0);
-                                        const percentage = totalSpent > 0 ? (spent / totalSpent) * 100 : 0;
+                                        // Calculate percentage of total visits
+                                        const totalVisits = analytics.storeBreakdown.reduce((sum, s) => sum + (s.visit_count || 0), 0);
+                                        const percentage = totalVisits > 0 ? (visits / totalVisits) * 100 : 0;
                                         
                                         return (
                                             <div key={store.store_name || idx} style={storeCard}>
                                                 <div style={storeCardHeader}>
                                                     <div>
-                                                        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "#111827" }}>
+                                                        <h4 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--cc-text)" }}>
                                                             {store.store_name || "Unknown Store"}
                                                         </h4>
-                                                        <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                                                        <div style={{ fontSize: 12, color: "var(--cc-muted)", marginTop: 4 }}>
                                                             {store.category ? store.category.charAt(0).toUpperCase() + store.category.slice(1) : ""}
                                                         </div>
                                                     </div>
-                                                    {idx === 0 && spent > 0 && (
-                                                        <span style={topStoreBadge}>🏆 Top Store</span>
+                                                    {idx === 0 && visits > 0 && (
+                                                        <span style={topStoreBadge}>✨ Top Store</span>
                                                     )}
                                                 </div>
                                                 
                                                 <div style={storeCardBody}>
                                                     <div style={storeMetric}>
-                                                        <div style={metricLabel}>Total Spent</div>
-                                                        <div style={metricValue}>${spent.toFixed(2)}</div>
+                                                        <div style={metricLabel}>Visits</div>
+                                                        <div style={metricValue}>{visits}</div>
                                                         <div style={metricBar}>
                                                             <div 
                                                                 style={{
                                                                     ...metricBarFill,
                                                                     width: `${Math.min(percentage, 100)}%`,
-                                                                    backgroundColor: "#2563eb"
+                                                                    backgroundColor: "var(--cc-primary)"
                                                                 }}
                                                             />
                                                         </div>
-                                                        <div style={metricSubtext}>{percentage.toFixed(1)}% of total spending</div>
+                                                        <div style={metricSubtext}>{percentage.toFixed(1)}% of total visits</div>
                                                     </div>
                                                     
                                                     <div style={storeMetric}>
                                                         <div style={metricLabel}>Loops Earned</div>
-                                                        <div style={{ ...metricValue, color: "#10b981" }}>+{loops}</div>
+                                                        <div style={{ ...metricValue, color: "var(--cc-success)" }}>+{loops}</div>
                                                         <div style={metricSubtext}>
-                                                            {visits > 0 ? `~${Math.round(loops / visits)} per visit` : "No visits"}
+                                                            {visits > 0 ? `~${avgLoops} per visit` : "No visits"}
                                                         </div>
                                                     </div>
                                                     
                                                     <div style={storeMetricRow}>
                                                         <div style={storeMetricSmall}>
-                                                            <div style={metricLabelSmall}>Visits</div>
-                                                            <div style={metricValueSmall}>{visits}</div>
+                                                            <div style={metricLabelSmall}>Last Visit</div>
+                                                            <div style={metricValueSmall}>
+                                                                {store.last_visit 
+                                                                    ? new Date(store.last_visit).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                                                                    : "N/A"}
+                                                            </div>
                                                         </div>
                                                         <div style={storeMetricSmall}>
-                                                            <div style={metricLabelSmall}>Avg per Visit</div>
-                                                            <div style={metricValueSmall}>${avgSpent.toFixed(2)}</div>
+                                                            <div style={metricLabelSmall}>Avg Loops</div>
+                                                            <div style={metricValueSmall}>{avgLoops}</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -257,20 +247,33 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                             subtitle={`${period} days`}
                         />
                         <KPICard
-                            title="Total Transactions"
-                            value={analytics.overview.total_transactions || 0}
-                            subtitle="Completed"
+                            title="Total Visits"
+                            value={analytics.overview.total_visits || 0}
+                            subtitle="Completed check-ins"
                         />
+                        {/* Commented out - not tracking money transactions
                         <KPICard
                             title="Total Revenue"
                             value={`$${((analytics.overview.total_revenue_cents || 0) / 100).toFixed(2)}`}
                             subtitle={`${period} days`}
                         />
+                        */}
                         <KPICard
                             title="Loops Given"
                             value={analytics.overview.total_loops_given || 0}
                             subtitle="Awarded"
                         />
+                        <KPICard
+                            title="Visits Today"
+                            value={analytics.overview.visits_today || 0}
+                            subtitle="Today"
+                        />
+                        <KPICard
+                            title="Visits This Week"
+                            value={analytics.overview.visits_this_week || 0}
+                            subtitle="Last 7 days"
+                        />
+                        {/* Commented out - not tracking money transactions
                         <KPICard
                             title="Avg Transaction"
                             value={`$${((analytics.overview.avg_transaction_cents || 0) / 100).toFixed(2)}`}
@@ -281,6 +284,17 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                             value={`$${((analytics.overview.max_transaction_cents || 0) / 100).toFixed(2)}`}
                             subtitle="Single purchase"
                         />
+                        */}
+                        <KPICard
+                            title="Visits This Month"
+                            value={analytics.overview.visits_this_month || 0}
+                            subtitle="Last 30 days"
+                        />
+                        <KPICard
+                            title="Visits This Year"
+                            value={analytics.overview.visits_this_year || 0}
+                            subtitle="Last 365 days"
+                        />
                     </div>
 
                     {/* Daily Trend */}
@@ -290,9 +304,9 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                             <ResponsiveContainer width="100%" height={300}>
                                 <LineChart data={analytics.dailyTrend.map(d => ({
                                     ...d,
-                                    revenue: (d.revenue_cents || 0) / 100,
+                                    visits: d.visit_count || 0,
                                     customers: d.customer_count || 0,
-                                    transactions: d.transaction_count || 0
+                                    loops: (d.loops_given || 0)
                                 }))}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="date" />
@@ -300,9 +314,9 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                     <YAxis yAxisId="right" orientation="right" />
                                     <Tooltip />
                                     <Legend />
-                                    <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#2563eb" name="Revenue ($)" />
-                                    <Line yAxisId="right" type="monotone" dataKey="customers" stroke="#10b981" name="Customers" />
-                                    <Line yAxisId="right" type="monotone" dataKey="transactions" stroke="#f59e0b" name="Transactions" />
+                                    <Line yAxisId="right" type="monotone" dataKey="visits" stroke="var(--cc-primary)" name="Visits" />
+                                    <Line yAxisId="right" type="monotone" dataKey="customers" stroke="var(--cc-success)" name="Customers" />
+                                    <Line yAxisId="left" type="monotone" dataKey="loops" stroke="var(--cc-warning)" name="Loops Given" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
@@ -319,8 +333,11 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                             <th style={th}>Customer</th>
                                             <th style={th}>Phone</th>
                                             <th style={th}>Visits</th>
+                                            {/* Commented out - not tracking money transactions
                                             <th style={th}>Total Spent</th>
+                                            */}
                                             <th style={th}>Loops Earned</th>
+                                            <th style={th}>Last Visit</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -328,9 +345,12 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                             <tr key={idx}>
                                                 <td style={td}>{c.user_name || c.name}</td>
                                                 <td style={td}>{c.user_phone || c.email || "N/A"}</td>
-                                                <td style={td}>{c.visit_count}</td>
+                                                <td style={td}>{c.visit_count || 0}</td>
+                                                {/* Commented out - not tracking money transactions
                                                 <td style={td}>${((c.total_spent_cents || 0) / 100).toFixed(2)}</td>
+                                                */}
                                                 <td style={td}>{c.total_loops_earned || 0}</td>
+                                                <td style={td}>{c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString() : "N/A"}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -390,7 +410,7 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                         labelLine={false}
                                         label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                                         outerRadius={100}
-                                        fill="#8884d8"
+                                        fill="var(--cc-info)"
                                         dataKey="count"
                                     >
                                         {analytics.tierDistribution.map((entry, index) => (
@@ -413,7 +433,6 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                         <tr>
                                             <th style={th}>Store</th>
                                             <th style={th}>Category</th>
-                                            <th style={th}>Zone</th>
                                             <th style={th}>Customers</th>
                                             <th style={th}>Transactions</th>
                                             <th style={th}>Revenue</th>
@@ -425,7 +444,6 @@ export default function AnalyticsDashboard({ token, userRole, userId, storeId })
                                             <tr key={idx}>
                                                 <td style={td}>{s.name}</td>
                                                 <td style={td}>{s.category}</td>
-                                                <td style={td}>{s.zone}</td>
                                                 <td style={td}>{s.customer_count || 0}</td>
                                                 <td style={td}>{s.transaction_count || 0}</td>
                                                 <td style={td}>${((s.revenue_cents || 0) / 100).toFixed(2)}</td>
@@ -454,11 +472,11 @@ function KPICard({ title, value, subtitle }) {
 }
 
 const card = {
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--cc-border)",
     padding: 20,
     borderRadius: 12,
-    backgroundColor: "#fff",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    backgroundColor: "var(--cc-surface)",
+    boxShadow: "var(--cc-shadow-sm)",
 };
 
 const kpiGrid = {
@@ -470,14 +488,14 @@ const kpiGrid = {
 const kpiCard = {
     padding: 20,
     borderRadius: 12,
-    backgroundColor: "#f9fafb",
-    border: "1px solid #e5e7eb",
+    backgroundColor: "var(--cc-surface-2)",
+    border: "1px solid var(--cc-border)",
     textAlign: "center",
 };
 
 const kpiTitle = {
     fontSize: 12,
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     textTransform: "uppercase",
     marginBottom: 8,
     fontWeight: 600,
@@ -486,27 +504,27 @@ const kpiTitle = {
 const kpiValue = {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#111827",
+    color: "var(--cc-text)",
     marginBottom: 4,
 };
 
 const kpiSubtitle = {
     fontSize: 11,
-    color: "#9ca3af",
+    color: "var(--cc-muted)",
 };
 
 const select = {
     padding: "8px 12px",
     borderRadius: 6,
-    border: "1px solid #d1d5db",
+    border: "1px solid var(--cc-border)",
     fontSize: 14,
 };
 
 const updateCard = {
     padding: 12,
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "rgba(14,165,233,0.08)",
     borderRadius: 6,
-    border: "1px solid #bae6fd",
+    border: "1px solid rgba(14,165,233,0.22)",
     display: "flex",
     flexDirection: "column",
     gap: 4,
@@ -522,17 +540,17 @@ const table = {
 const th = {
     textAlign: "left",
     padding: "12px 8px",
-    borderBottom: "2px solid #e5e7eb",
+    borderBottom: "2px solid var(--cc-border)",
     fontWeight: 600,
-    color: "#374151",
+    color: "var(--cc-text)",
     fontSize: 12,
     textTransform: "uppercase",
 };
 
 const td = {
     padding: "12px 8px",
-    borderBottom: "1px solid #f3f4f6",
-    color: "#6b7280",
+    borderBottom: "1px solid var(--cc-border)",
+    color: "var(--cc-muted)",
 };
 
 const storeGrid = {
@@ -542,10 +560,10 @@ const storeGrid = {
 };
 
 const storeCard = {
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--cc-border)",
     borderRadius: 12,
     padding: 16,
-    backgroundColor: "#fff",
+    backgroundColor: "var(--cc-surface)",
     transition: "all 0.2s",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
 };
@@ -556,15 +574,15 @@ const storeCardHeader = {
     alignItems: "flex-start",
     marginBottom: 16,
     paddingBottom: 12,
-    borderBottom: "1px solid #f3f4f6",
+    borderBottom: "1px solid var(--cc-border)",
 };
 
 const topStoreBadge = {
     fontSize: 11,
     padding: "4px 8px",
     borderRadius: 6,
-    backgroundColor: "#fef3c7",
-    color: "#92400e",
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    color: "var(--cc-warning)",
     fontWeight: 600,
 };
 
@@ -582,7 +600,7 @@ const storeMetric = {
 
 const metricLabel = {
     fontSize: 12,
-    color: "#6b7280",
+    color: "var(--cc-muted)",
     fontWeight: 500,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
@@ -591,13 +609,13 @@ const metricLabel = {
 const metricValue = {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#111827",
+    color: "var(--cc-text)",
 };
 
 const metricBar = {
     width: "100%",
     height: 6,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "var(--cc-surface-2)",
     borderRadius: 3,
     overflow: "hidden",
     marginTop: 4,
@@ -611,7 +629,7 @@ const metricBarFill = {
 
 const metricSubtext = {
     fontSize: 11,
-    color: "#9ca3af",
+    color: "var(--cc-muted)",
     marginTop: 2,
 };
 
@@ -620,7 +638,7 @@ const storeMetricRow = {
     gap: 12,
     marginTop: 8,
     paddingTop: 12,
-    borderTop: "1px solid #f3f4f6",
+    borderTop: "1px solid var(--cc-border)",
 };
 
 const storeMetricSmall = {
@@ -632,11 +650,15 @@ const storeMetricSmall = {
 
 const metricLabelSmall = {
     fontSize: 11,
-    color: "#9ca3af",
+    color: "var(--cc-muted)",
 };
 
 const metricValueSmall = {
     fontSize: 16,
     fontWeight: 600,
-    color: "#374151",
+    color: "var(--cc-text)",
 };
+
+
+
+

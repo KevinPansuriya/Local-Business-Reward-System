@@ -49,7 +49,6 @@ export async function geocodeAddress(address) {
         
         return null;
     } catch (error) {
-        console.error("Geocoding error:", error);
         throw new Error("Failed to geocode address: " + error.message);
     }
 }
@@ -113,7 +112,7 @@ export async function reverseGeocode(latitude, longitude) {
         
         return null;
     } catch (error) {
-        console.error("Reverse geocoding error:", error);
         throw new Error("Failed to reverse geocode: " + error.message);
     }
 }
+

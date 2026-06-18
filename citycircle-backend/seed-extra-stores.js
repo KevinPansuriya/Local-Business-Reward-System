@@ -1,4 +1,4 @@
-﻿// seed-extra-stores.js
+// seed-extra-stores.js
 const bcrypt = require("bcryptjs");
 const db = require("./db");
 
@@ -6,16 +6,6 @@ async function run() {
     const hash = await bcrypt.hash("password123", 10); // same password for all demo stores
 
     const stores = [
-        {
-            email: "coffee@grove.com",
-            name: "Grove Coffee",
-            zone: "ZONE_A",
-            category: "coffee",
-            base_discount_percent: 5,
-            phone: "5550105521",
-            latitude: 40.7195,
-            longitude: -74.042,
-        },
         {
             email: "grocery@test.com",
             name: "Local Grocery",
@@ -68,21 +58,19 @@ async function run() {
                 s.longitude,
                 (err) => {
                     if (err) {
-                        console.error("Insert error for", s.email, err);
                     }
                 }
             );
         });
 
         stmt.finalize((err) => {
-            if (err) console.error("Finalize error:", err);
-            else console.log("Extra stores seeded ✅");
             db.close();
         });
     });
 }
 
 run().catch((e) => {
-    console.error(e);
     process.exit(1);
 });
+
+

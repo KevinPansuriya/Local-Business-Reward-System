@@ -2,6 +2,8 @@
 import React, { useState } from "react";
 import { updateStoreLocation } from "./api";
 import { geocodeAddress } from "./geocoding";
+import Button from "./ui/Button";
+import Input from "./ui/Input";
 
 export default function StoreLocationPrompt({ token, onLocationSet }) {
     const [loading, setLoading] = useState(false);
@@ -119,18 +121,17 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
         <div style={overlay}>
             <div style={modal}>
                 <h2 style={{ marginTop: 0 }}>Set Store Location</h2>
-                <p style={{ color: "#6b7280", marginBottom: 20 }}>
+                <p style={{ color: "var(--cc-muted)", marginBottom: 20 }}>
                     We need your store location to help customers find you.
                     <br />
-                    <span style={{ fontSize: 12, color: "#9ca3af" }}>
-                        Using free OpenStreetMap geocoding service - no API key required!
+                    <span style={{ fontSize: 12, color: "var(--cc-muted)" }}>
+                        You can detect location or enter your store address.
                     </span>
                 </p>
 
                 <div style={inputGroup}>
                     <label style={label}>Address Line 1 (Street Address)</label>
-                    <input
-                        style={input}
+                    <Input
                         type="text"
                         placeholder="e.g., 123 Main Street"
                         value={address1}
@@ -140,8 +141,7 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
 
                 <div style={inputGroup}>
                     <label style={label}>Address Line 2 (Optional)</label>
-                    <input
-                        style={input}
+                    <Input
                         type="text"
                         placeholder="e.g., Suite 200, Floor 2"
                         value={address2}
@@ -152,8 +152,7 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
                 <div style={addressRow}>
                     <div style={{ flex: 1, marginRight: 8 }}>
                         <label style={label}>City</label>
-                        <input
-                            style={input}
+                        <Input
                             type="text"
                             placeholder="City"
                             value={city}
@@ -162,8 +161,7 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
                     </div>
                     <div style={{ flex: 1, marginRight: 8 }}>
                         <label style={label}>State</label>
-                        <input
-                            style={input}
+                        <Input
                             type="text"
                             placeholder="State"
                             value={state}
@@ -172,8 +170,7 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
                     </div>
                     <div style={{ flex: 1 }}>
                         <label style={label}>Zipcode</label>
-                        <input
-                            style={input}
+                        <Input
                             type="text"
                             placeholder="Zipcode"
                             value={zipcode}
@@ -183,22 +180,22 @@ export default function StoreLocationPrompt({ token, onLocationSet }) {
                 </div>
 
                 <div style={buttonGroup}>
-                    <button
-                        style={primaryButton}
+                    <Button
+                        variant="secondary"
                         onClick={handleGetLocation}
                         disabled={loading}
                     >
                         {loading ? "Getting location..." : "📍 Detect Current Location (Optional)"}
-                    </button>
-                    <button
-                        style={detectedLocation ? primaryButton : secondaryButton}
+                    </Button>
+                    <Button
+                        variant={detectedLocation ? "primary" : "secondary"}
                         onClick={handleSaveLocation}
                         disabled={loading}
                     >
                         {loading ? "Saving..." : "✓ Save Location"}
-                    </button>
+                    </Button>
                     {!detectedLocation && (address1.trim() || city.trim()) && (
-                        <p style={{ fontSize: 12, color: "#6b7280", margin: 0, textAlign: "center" }}>
+                        <p style={{ fontSize: 12, color: "var(--cc-muted)", margin: 0, textAlign: "center" }}>
                             Click "Save Location" to use the address you entered
                         </p>
                     )}
@@ -224,12 +221,12 @@ const overlay = {
 };
 
 const modal = {
-    backgroundColor: "#fff",
+    backgroundColor: "var(--cc-surface)",
     padding: 30,
     borderRadius: 12,
     maxWidth: 500,
     width: "90%",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+    boxShadow: "var(--cc-shadow-md)",
 };
 
 const inputGroup = {
@@ -247,17 +244,10 @@ const label = {
     marginBottom: 8,
     fontSize: 14,
     fontWeight: 500,
-    color: "#374151",
+    color: "var(--cc-text)",
 };
 
-const input = {
-    width: "100%",
-    padding: "10px 12px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    fontSize: 14,
-    boxSizing: "border-box",
-};
+const input = null;
 
 const buttonGroup = {
     display: "flex",
@@ -265,40 +255,21 @@ const buttonGroup = {
     flexDirection: "column",
 };
 
-const primaryButton = {
-    padding: "12px 20px",
-    borderRadius: 6,
-    border: "none",
-    backgroundColor: "#2563eb",
-    color: "white",
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "background-color 0.2s",
-};
+const primaryButton = null;
 
-const secondaryButton = {
-    padding: "12px 20px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    backgroundColor: "#f9fafb",
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-};
+const secondaryButton = null;
 
 const errorText = {
     marginTop: 12,
-    color: "#ef4444",
+    color: "var(--cc-danger)",
     fontSize: 13,
 };
 
 const detectingInfo = {
     marginBottom: 12,
     padding: 12,
-    backgroundColor: "#fef3c7",
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
     borderRadius: 8,
-    border: "1px solid #fde68a",
+    border: "1px solid rgba(245, 158, 11, 0.35)",
     textAlign: "center",
 };

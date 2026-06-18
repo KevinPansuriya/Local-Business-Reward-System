@@ -1,31 +1,67 @@
 // src/App.jsx
-import React, { useState } from "react";
-import { userLogin, userSignup, forgotPasswordCustomer, resetPasswordCustomer, startWebAuthnAuthentication, finishWebAuthnAuthentication } from "./api";
+import React, { useState, useEffect, useRef } from "react";
+import { userLogin, userSignup, forgotPasswordCustomer, resetPasswordCustomer, startWebAuthnAuthentication, finishWebAuthnAuthentication, trackEvent, getUtmFromUrl } from "./api";
 import { startAuthentication } from "@simplewebauthn/browser";
 import CustomerApp from "./CustomerApp";
-import StoreMapView from "./StoreMapView";
 import StoreApp from "./StoreApp";
 import AdminApp from "./AdminApp";
 
 function App() {
-    const [mode, setMode] = useState("customer");
-    const [token, setToken] = useState("");
-    const [entityId, setEntityId] = useState(null);
+    const getStored = (key) => (typeof window !== "undefined" ? window.localStorage.getItem(key) : null);
+    const [mode, setMode] = useState(() => getStored("cc_mode") || "customer");
+    const [token, setToken] = useState(() => {
+        const storedMode = getStored("cc_mode") || "customer";
+        if (storedMode === "admin") {
+            return getStored("cc_admin_token") || "";
+        }
+        return getStored("cc_customer_token") || "";
+    });
+    const [entityId, setEntityId] = useState(() => {
+        const raw = getStored("cc_customer_id");
+        return raw ? Number(raw) : null;
+    });
     const [phone, setPhone] = useState("");
     const [email, setEmail] = useState("");
     const [name, setName] = useState("");
-    const [address, setAddress] = useState("");
+    const [dob, setDob] = useState("");
+    const [dobInputFocused, setDobInputFocused] = useState(false);
     const [password, setPassword] = useState("");
     const [showSignup, setShowSignup] = useState(false);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
-    const [resetToken, setResetToken] = useState(null);
-    const [resetType, setResetType] = useState(null);
+    const [resetCode, setResetCode] = useState("");
+    const [resetRequested, setResetRequested] = useState(false);
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [err, setErr] = useState("");
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState("");
     const [faceIDLoading, setFaceIDLoading] = useState(false);
+    const pageViewSentRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.localStorage.setItem("cc_mode", mode);
+    }, [mode]);
+
+    // Check URL for mode parameter on mount
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlMode = urlParams.get("mode");
+            if (urlMode === "store" || urlMode === "customer" || urlMode === "admin") {
+                setMode(urlMode);
+            }
+        }
+    }, []);
+
+    // Track page_view once when customer login screen is shown (no token)
+    useEffect(() => {
+        if (typeof window === "undefined" || mode !== "customer" || token) return;
+        if (pageViewSentRef.current) return;
+        pageViewSentRef.current = true;
+        const utm = getUtmFromUrl();
+        trackEvent("page_view", { ...utm, payload: { app: "customer" } });
+    }, [mode, token]);
 
     const handleLogin = async () => {
         if (mode !== "customer") return;
@@ -40,10 +76,18 @@ function App() {
             const res = await userLogin(phone, password);
             setToken(res.token);
             setEntityId(res.userId);
+            if (typeof window !== "undefined") {
+                window.localStorage.setItem("cc_customer_token", res.token);
+                window.localStorage.setItem("cc_customer_id", String(res.userId));
+            }
         } catch (e) {
             setErr(e.message);
             setToken("");
             setEntityId(null);
+            if (typeof window !== "undefined") {
+                window.localStorage.removeItem("cc_customer_token");
+                window.localStorage.removeItem("cc_customer_id");
+            }
         } finally {
             setLoading(false);
         }
@@ -70,10 +114,31 @@ function App() {
 
         setErr("");
         setLoading(true);
+        const utm = getUtmFromUrl();
         try {
-            const res = await userSignup(phone, email, password, name, address);
+            const res = await userSignup(
+                phone,
+                email,
+                password,
+                name,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                dob,
+                "web",
+                utm.utm_source,
+                utm.utm_medium,
+                utm.utm_campaign
+            );
             setToken(res.token);
             setEntityId(res.userId);
+            if (typeof window !== "undefined") {
+                window.localStorage.setItem("cc_customer_token", res.token);
+                window.localStorage.setItem("cc_customer_id", String(res.userId));
+            }
             setShowSignup(false);
         } catch (e) {
             setErr(e.message);
@@ -99,7 +164,8 @@ function App() {
         setLoading(true);
         try {
             const res = await forgotPasswordCustomer(cleanedPhone);
-            setSuccessMsg(res.message || "Password reset link sent to your phone number");
+            setSuccessMsg(res.message || "Reset code sent to your phone number");
+            setResetRequested(true);
         } catch (e) {
             setErr(e.message);
         } finally {
@@ -126,11 +192,12 @@ function App() {
         setErr("");
         setLoading(true);
         try {
-            const res = await resetPasswordCustomer(resetToken, newPassword);
+            const res = await resetPasswordCustomer(phone, resetCode, newPassword);
             setSuccessMsg(res.message || "Password reset successfully. You can now login.");
             setTimeout(() => {
                 setShowForgotPassword(false);
-                setResetToken(null);
+                setResetCode("");
+                setResetRequested(false);
                 setNewPassword("");
                 setConfirmPassword("");
             }, 2000);
@@ -140,20 +207,6 @@ function App() {
             setLoading(false);
         }
     };
-
-    // Check for reset token in URL on mount
-    React.useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        const type = urlParams.get('type');
-        if (token && type === 'user') {
-            setResetToken(token);
-            setResetType(type);
-            setShowForgotPassword(true);
-            // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }, []);
 
     const handleFaceIDLogin = async () => {
         if (mode !== "customer") return;
@@ -188,7 +241,6 @@ function App() {
             }
             
             if (!options.challenge) {
-                console.error("Invalid options response:", options);
                 throw new Error("Server returned invalid authentication options. Please try again.");
             }
             
@@ -205,7 +257,6 @@ function App() {
                 setErr("Face ID authentication failed. Please try again or use password login.");
             }
         } catch (error) {
-            console.error("Face ID login error:", error);
             
             // Check if HTTPS is required
             if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
@@ -227,6 +278,12 @@ function App() {
     const handleLogout = () => {
         setToken("");
         setEntityId(null);
+        if (typeof window !== "undefined") {
+            window.localStorage.removeItem("cc_customer_token");
+            window.localStorage.removeItem("cc_customer_id");
+            window.localStorage.removeItem("cc_customer_active_tab");
+            window.localStorage.removeItem("cc_customer_settings_section");
+        }
     };
 
     return (
@@ -237,8 +294,8 @@ function App() {
                         <button
                             style={{
                                 ...modeButton,
-                                backgroundColor: mode === "customer" ? "#2563eb" : "#f3f4f6",
-                                color: mode === "customer" ? "white" : "#374151",
+                                backgroundColor: mode === "customer" ? "var(--cc-primary)" : "var(--cc-surface-2)",
+                                color: mode === "customer" ? "white" : "var(--cc-text)",
                             }}
                             onClick={() => {
                                 setMode("customer");
@@ -248,9 +305,15 @@ function App() {
                                 setPhone("");
                                 setEmail("");
                                 setName("");
-                                setAddress("");
+                                setDob("");
                                 setPassword("");
                                 setShowSignup(false);
+                                if (typeof window !== "undefined") {
+                                    window.localStorage.removeItem("cc_customer_token");
+                                    window.localStorage.removeItem("cc_customer_id");
+                                    window.localStorage.removeItem("cc_customer_active_tab");
+                                    window.localStorage.removeItem("cc_customer_settings_section");
+                                }
                             }}
                         >
                             Customer
@@ -258,8 +321,8 @@ function App() {
                         <button
                             style={{
                                 ...modeButton,
-                                backgroundColor: mode === "store" ? "#2563eb" : "#f3f4f6",
-                                color: mode === "store" ? "white" : "#374151",
+                                backgroundColor: mode === "store" ? "var(--cc-primary)" : "var(--cc-surface-2)",
+                                color: mode === "store" ? "white" : "var(--cc-text)",
                             }}
                             onClick={() => {
                                 setMode("store");
@@ -273,8 +336,8 @@ function App() {
                         <button
                             style={{
                                 ...modeButton,
-                                backgroundColor: mode === "admin" ? "#2563eb" : "#f3f4f6",
-                                color: mode === "admin" ? "white" : "#374151",
+                                backgroundColor: mode === "admin" ? "var(--cc-primary)" : "var(--cc-surface-2)",
+                                color: mode === "admin" ? "white" : "var(--cc-text)",
                             }}
                             onClick={() => {
                                 setMode("admin");
@@ -286,7 +349,31 @@ function App() {
                             Admin
                         </button>
                     </div>
-                    <strong style={logo}>CityCircle</strong>
+                    <div style={logoBlock}>
+                        <strong style={logo}>CityCircle</strong>
+                        <span style={logoTagline}>The Trusted Circle for Local Shops.</span>
+                    </div>
+                    {(mode === "customer" && token) || (mode === "store" && (typeof window !== "undefined" && (window.sessionStorage.getItem("cc_store_token") || window.localStorage.getItem("cc_store_token")))) ? (
+                        <button
+                            style={headerLogout}
+                            onClick={() => {
+                                if (mode === "customer") {
+                                    handleLogout();
+                                } else if (mode === "store") {
+                                    // Clear store token
+                                    if (typeof window !== "undefined") {
+                                        window.sessionStorage.removeItem("cc_store_token");
+                                        window.localStorage.removeItem("cc_store_token");
+                                        window.localStorage.removeItem("cc_store_active_tab");
+                                    }
+                                    // Reload to reset StoreApp state
+                                    window.location.reload();
+                                }
+                            }}
+                        >
+                            Logout
+                        </button>
+                    ) : null}
                 </header>
             )}
 
@@ -305,19 +392,30 @@ function App() {
 
                 {mode === "customer" && !token && (
                     <div style={loginBox}>
-                        <h3 style={{ marginTop: 0 }}>{showSignup ? "Customer Signup" : "Customer Login"}</h3>
-                        <input
-                            style={input}
-                            type="tel"
-                            placeholder="Phone Number (required)"
-                            value={phone}
-                            onChange={(e) => {
-                                setPhone(e.target.value);
-                                setErr("");
-                            }}
-                            onKeyPress={(e) => e.key === "Enter" && (showSignup ? handleSignup() : handleLogin())}
-                        />
-                        {showSignup && (
+                        <h3 style={{ marginTop: 0 }}>
+                            {showForgotPassword
+                                ? "Reset Password"
+                                : showSignup
+                                    ? "Customer Signup"
+                                    : "Customer Login"}
+                        </h3>
+                        {(!showSignup || showForgotPassword) && (
+                            <input
+                                style={input}
+                                type="tel"
+                                placeholder="Phone Number (required)"
+                                value={phone}
+                                onChange={(e) => {
+                                    setPhone(e.target.value);
+                                    setErr("");
+                                }}
+                                onKeyPress={(e) =>
+                                    e.key === "Enter" &&
+                                    (showForgotPassword ? handleForgotPassword() : showSignup ? handleSignup() : handleLogin())
+                                }
+                            />
+                        )}
+                        {!showForgotPassword && showSignup && (
                             <>
                                 <input
                                     style={input}
@@ -339,92 +437,196 @@ function App() {
                                         setErr("");
                                     }}
                                 />
-                                <p style={{ fontSize: 11, color: "#6b7280", margin: "4px 0 0 0" }}>
-                                    Email is optional but recommended for account recovery
-                                </p>
                                 <input
                                     style={input}
-                                    type="text"
-                                    placeholder="Address (optional)"
-                                    value={address}
+                                    type="tel"
+                                    placeholder="Phone Number (required)"
+                                    value={phone}
                                     onChange={(e) => {
-                                        setAddress(e.target.value);
+                                        setPhone(e.target.value);
+                                        setErr("");
+                                    }}
+                                />
+                                <input
+                                    style={input}
+                                    type={dobInputFocused || dob ? "date" : "text"}
+                                    placeholder="Birthdate (MM/DD/YYYY)"
+                                    value={dob}
+                                    onFocus={() => setDobInputFocused(true)}
+                                    onBlur={() => setDobInputFocused(false)}
+                                    onChange={(e) => {
+                                        setDob(e.target.value);
                                         setErr("");
                                     }}
                                 />
                             </>
                         )}
-                        <input
-                            style={input}
-                            type="password"
-                            placeholder="Password"
-                            value={password}
-                            onChange={(e) => {
-                                setPassword(e.target.value);
-                                setErr("");
-                            }}
-                            onKeyPress={(e) => e.key === "Enter" && (showSignup ? handleSignup() : handleLogin())}
-                        />
-                        <div style={buttonGroup}>
-                            <button 
-                                style={primaryButton} 
-                                onClick={showSignup ? handleSignup : handleLogin} 
-                                disabled={loading || faceIDLoading}
-                            >
-                                {loading ? (showSignup ? "Signing up..." : "Logging in...") : (showSignup ? "Sign Up" : "Login")}
-                            </button>
-                        </div>
-                        {!showSignup && (
-                            <div style={{ marginTop: 12 }}>
-                                <button
-                                    style={{ ...primaryButton, backgroundColor: "#10b981", width: "100%" }}
-                                    onClick={handleFaceIDLogin}
-                                    disabled={loading || faceIDLoading}
-                                >
-                                    {faceIDLoading ? "Authenticating..." : "🔐 Login with Face ID"}
-                                </button>
-                                <p style={{ fontSize: 11, color: "#6b7280", marginTop: 8, textAlign: "center" }}>
-                                    Use Face ID (iPhone) or Face Unlock (Samsung) for quick login
-                                </p>
-                            </div>
-                        )}
-                        <div style={{ marginTop: 12, textAlign: "center" }}>
-                            <button
-                                style={{ ...linkButton }}
-                                onClick={() => {
-                                    setShowSignup(!showSignup);
+
+                        {!showForgotPassword && (
+                            <input
+                                style={input}
+                                type="password"
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
                                     setErr("");
                                 }}
-                            >
-                                {showSignup ? "Already have an account? Login" : "Don't have an account? Sign up"}
-                            </button>
-                        </div>
+                                onKeyPress={(e) =>
+                                    e.key === "Enter" && (showSignup ? handleSignup() : handleLogin())
+                                }
+                            />
+                        )}
+
+                        {showForgotPassword && (
+                            <>
+                                <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                                    <button
+                                        style={primaryButton}
+                                        onClick={handleForgotPassword}
+                                        disabled={loading}
+                                    >
+                                        {loading ? "Sending..." : "Send SMS Code"}
+                                    </button>
+                                </div>
+                                {resetRequested && (
+                                    <>
+                                        <input
+                                            style={input}
+                                            type="text"
+                                            placeholder="6-digit code"
+                                            value={resetCode}
+                                            onChange={(e) => setResetCode(e.target.value)}
+                                        />
+                                        <input
+                                            style={input}
+                                            type="password"
+                                            placeholder="New password"
+                                            value={newPassword}
+                                            onChange={(e) => setNewPassword(e.target.value)}
+                                        />
+                                        <input
+                                            style={input}
+                                            type="password"
+                                            placeholder="Confirm new password"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                        />
+                                        <button
+                                            style={primaryButton}
+                                            onClick={handleResetPassword}
+                                            disabled={loading}
+                                        >
+                                            {loading ? "Resetting..." : "Reset Password"}
+                                        </button>
+                                    </>
+                                )}
+                            </>
+                        )}
+
+                        {!showForgotPassword && (
+                            <>
+                                <div style={buttonGroup}>
+                                    <button
+                                        style={primaryButton}
+                                        onClick={showSignup ? handleSignup : handleLogin}
+                                        disabled={loading || faceIDLoading}
+                                    >
+                                        {loading
+                                            ? showSignup
+                                                ? "Signing up..."
+                                                : "Logging in..."
+                                            : showSignup
+                                                ? "Sign Up"
+                                                : "Login"}
+                                    </button>
+                                </div>
+                                {!showSignup && (
+                                    <div style={{ marginTop: 12 }}>
+                                        <button
+                                            style={{ ...primaryButton, backgroundColor: "var(--cc-success)", width: "100%" }}
+                                            onClick={handleFaceIDLogin}
+                                            disabled={loading || faceIDLoading}
+                                        >
+                                            {faceIDLoading ? "Authenticating..." : "🔐 Login with Face ID"}
+                                        </button>
+                                        <p style={{ fontSize: 11, color: "var(--cc-muted)", marginTop: 8, textAlign: "center" }}>
+                                            Use Face ID (iPhone) or Face Unlock (Samsung) for quick login
+                                        </p>
+                                    </div>
+                                )}
+                                <div style={{ marginTop: 12, textAlign: "center" }}>
+                                    <button
+                                        style={{ ...linkButton }}
+                                        onClick={() => {
+                                            if (!showSignup) trackEvent("signup_started", getUtmFromUrl());
+                                            setShowSignup(!showSignup);
+                                            setErr("");
+                                        }}
+                                    >
+                                        {showSignup ? "Already have an account? Login" : "Don't have an account? Sign up"}
+                                    </button>
+                                </div>
+                                {!showSignup && (
+                                    <div style={{ marginTop: 8, textAlign: "center" }}>
+                                        <button
+                                            style={linkButton}
+                                            onClick={() => {
+                                                setShowForgotPassword(true);
+                                                setResetRequested(false);
+                                                setResetCode("");
+                                                setNewPassword("");
+                                                setConfirmPassword("");
+                                                setErr("");
+                                                setSuccessMsg("");
+                                            }}
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {showForgotPassword && (
+                            <div style={{ marginTop: 12, textAlign: "center" }}>
+                                <button
+                                    style={linkButton}
+                                    onClick={() => {
+                                        setShowForgotPassword(false);
+                                        setResetRequested(false);
+                                        setResetCode("");
+                                        setNewPassword("");
+                                        setConfirmPassword("");
+                                        setErr("");
+                                        setSuccessMsg("");
+                                    }}
+                                >
+                                    Back to login
+                                </button>
+                            </div>
+                        )}
+
+                        {successMsg && <p style={{ ...successText }}>{successMsg}</p>}
                         {err && <p style={errorText}>{err}</p>}
                     </div>
                 )}
-                {mode === "customer" && token && (
-                    <div style={loginBox}>
-                        <div style={buttonGroup}>
-                            <button style={secondaryButton} onClick={handleLogout}>
-                                Logout
-                            </button>
-                        </div>
-                        {entityId && (
-                            <p style={infoText}>
-                                Logged in as customer ID: {entityId}
-                            </p>
-                        )}
-                    </div>
-                )}
+                {mode === "customer" && token && null}
 
                 {mode === "customer" && token && (
                     <>
-                        <CustomerApp token={token} />
-                        <StoreMapView token={token} />
+                        <CustomerApp token={token} onLogout={handleLogout} />
                     </>
                 )}
 
-                {mode === "store" && <StoreApp />}
+                {mode === "store" && <StoreApp onStoreToken={(token) => {
+                    // Handle store token changes
+                    if (!token && typeof window !== "undefined") {
+                        window.sessionStorage.removeItem("cc_store_token");
+                        window.localStorage.removeItem("cc_store_token");
+                        window.localStorage.removeItem("cc_store_active_tab");
+                    }
+                }} />}
                     </>
                 )}
             </main>
@@ -435,17 +637,17 @@ function App() {
 const appContainer = {
     fontFamily: "system-ui, -apple-system, sans-serif",
     minHeight: "100vh",
-    backgroundColor: "#f9fafb",
+    backgroundColor: "var(--cc-bg)",
 };
 
 const header = {
     padding: "16px 20px",
-    borderBottom: "1px solid #e5e7eb",
+    borderBottom: "1px solid var(--cc-border)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    backgroundColor: "var(--cc-surface)",
+    boxShadow: "var(--cc-shadow-sm)",
     flexWrap: "wrap",
     gap: 12,
 };
@@ -457,8 +659,8 @@ const headerButtons = {
 
 const modeButton = {
     padding: "8px 16px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
+    borderRadius: "var(--cc-radius-sm)",
+    border: "1px solid var(--cc-border)",
     fontSize: 14,
     fontWeight: 500,
     cursor: "pointer",
@@ -467,8 +669,31 @@ const modeButton = {
 
 const logo = {
     fontSize: 18,
-    color: "#111827",
+    color: "var(--cc-text)",
     fontWeight: 600,
+};
+
+const logoBlock = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+};
+
+const logoTagline = {
+    fontSize: 11,
+    color: "var(--cc-muted)",
+    letterSpacing: "0.2px",
+};
+
+const headerLogout = {
+    padding: "6px 12px",
+    borderRadius: "var(--cc-radius-sm)",
+    border: "1px solid var(--cc-border)",
+    background: "var(--cc-surface)",
+    color: "var(--cc-text)",
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
 };
 
 const main = {
@@ -481,16 +706,16 @@ const title = {
     fontSize: "clamp(24px, 5vw, 32px)",
     marginTop: 0,
     marginBottom: 24,
-    color: "#111827",
+    color: "var(--cc-text)",
 };
 
 const loginBox = {
-    border: "1px solid #e5e7eb",
+    border: "1px solid var(--cc-border)",
     padding: 20,
-    borderRadius: 12,
+    borderRadius: "var(--cc-radius-md)",
     maxWidth: 400,
-    backgroundColor: "#fff",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+    backgroundColor: "var(--cc-surface)",
+    boxShadow: "var(--cc-shadow-sm)",
     marginBottom: 24,
 };
 
@@ -499,8 +724,8 @@ const input = {
     marginBottom: 12,
     width: "100%",
     padding: "10px 12px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
+    borderRadius: "var(--cc-radius-sm)",
+    border: "1px solid var(--cc-border)",
     fontSize: 14,
     boxSizing: "border-box",
 };
@@ -513,9 +738,9 @@ const buttonGroup = {
 
 const primaryButton = {
     padding: "10px 20px",
-    borderRadius: 6,
+    borderRadius: "var(--cc-radius-sm)",
     border: "none",
-    backgroundColor: "#2563eb",
+    backgroundColor: "var(--cc-primary)",
     color: "white",
     fontSize: 14,
     fontWeight: 500,
@@ -525,10 +750,10 @@ const primaryButton = {
 
 const secondaryButton = {
     padding: "10px 20px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    backgroundColor: "#f9fafb",
-    color: "#374151",
+    borderRadius: "var(--cc-radius-sm)",
+    border: "1px solid var(--cc-border)",
+    backgroundColor: "var(--cc-surface-2)",
+    color: "var(--cc-text)",
     fontSize: 14,
     fontWeight: 500,
     cursor: "pointer",
@@ -537,19 +762,25 @@ const secondaryButton = {
 const infoText = {
     marginTop: 12,
     fontSize: 12,
-    color: "#6b7280",
+    color: "var(--cc-muted)",
 };
 
 const errorText = {
     marginTop: 12,
-    color: "#ef4444",
+    color: "var(--cc-danger)",
+    fontSize: 13,
+};
+
+const successText = {
+    marginTop: 12,
+    color: "var(--cc-success)",
     fontSize: 13,
 };
 
 const linkButton = {
     background: "none",
     border: "none",
-    color: "#2563eb",
+    color: "var(--cc-primary)",
     fontSize: 13,
     cursor: "pointer",
     textDecoration: "underline",
@@ -557,3 +788,4 @@ const linkButton = {
 };
 
 export default App;
+

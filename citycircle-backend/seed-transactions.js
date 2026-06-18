@@ -16,13 +16,11 @@ function randomDateLast4Months() {
 db.serialize(() => {
   db.get(`SELECT id FROM users LIMIT 1`, (err, user) => {
     if (!user) {
-      console.error("❌ No user found");
       process.exit(1);
     }
 
     db.all(`SELECT id FROM stores`, (err, stores) => {
       if (!stores.length) {
-        console.error("❌ No stores found");
         process.exit(1);
       }
 
@@ -49,9 +47,10 @@ db.serialize(() => {
       }
 
       stmt.finalize(() => {
-        console.log("✅ Seeded transactions (last 4 months)");
         db.close();
       });
     });
   });
 });
+
+

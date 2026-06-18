@@ -1,7 +1,6 @@
 // Migration script to add gift card tables
 const db = require("./db");
 
-console.log("Starting gift card migration...");
 
 const migrations = [
     // Gift Cards table
@@ -62,8 +61,6 @@ const migrations = [
 // Run migrations sequentially
 function runMigrations(index) {
     if (index >= migrations.length) {
-        console.log(`\nGift card migration complete!`);
-        console.log(`✅ All migrations successful`);
         process.exit(0);
         return;
     }
@@ -71,10 +68,8 @@ function runMigrations(index) {
     const sql = migrations[index];
     db.run(sql, (err) => {
         if (err) {
-            console.error(`Migration ${index + 1} failed:`, err.message);
             process.exit(1);
         } else {
-            console.log(`Migration ${index + 1} completed`);
             runMigrations(index + 1);
         }
     });
@@ -82,3 +77,5 @@ function runMigrations(index) {
 
 // Start migrations
 runMigrations(0);
+
+

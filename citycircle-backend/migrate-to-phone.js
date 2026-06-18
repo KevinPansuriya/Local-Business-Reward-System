@@ -8,16 +8,13 @@ function generateQRCode(prefix, id) {
     return `${prefix}:${id}:${random}`;
 }
 
-console.log("Starting migration...");
 
 // Add new columns to users table
 db.run(`
     ALTER TABLE users ADD COLUMN phone TEXT;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding phone to users:", err);
     } else {
-        console.log("Added phone column to users");
     }
 });
 
@@ -25,9 +22,7 @@ db.run(`
     ALTER TABLE users ADD COLUMN address TEXT;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding address to users:", err);
     } else {
-        console.log("Added address column to users");
     }
 });
 
@@ -35,9 +30,7 @@ db.run(`
     ALTER TABLE users ADD COLUMN latitude REAL;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding latitude to users:", err);
     } else {
-        console.log("Added latitude column to users");
     }
 });
 
@@ -45,9 +38,7 @@ db.run(`
     ALTER TABLE users ADD COLUMN longitude REAL;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding longitude to users:", err);
     } else {
-        console.log("Added longitude column to users");
     }
 });
 
@@ -55,9 +46,7 @@ db.run(`
     ALTER TABLE users ADD COLUMN qr_code TEXT;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding qr_code to users:", err);
     } else {
-        console.log("Added qr_code column to users");
     }
 });
 
@@ -65,9 +54,7 @@ db.run(`
     ALTER TABLE users ADD COLUMN location_set INTEGER NOT NULL DEFAULT 0;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding location_set to users:", err);
     } else {
-        console.log("Added location_set column to users");
     }
 });
 
@@ -76,9 +63,7 @@ db.run(`
     ALTER TABLE stores ADD COLUMN phone TEXT;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding phone to stores:", err);
     } else {
-        console.log("Added phone column to stores");
     }
 });
 
@@ -86,9 +71,7 @@ db.run(`
     ALTER TABLE stores ADD COLUMN qr_code TEXT;
 `, (err) => {
     if (err && !err.message.includes("duplicate column")) {
-        console.error("Error adding qr_code to stores:", err);
     } else {
-        console.log("Added qr_code column to stores");
     }
 });
 
@@ -96,7 +79,6 @@ db.run(`
 setTimeout(() => {
     db.all("SELECT id, email FROM users WHERE qr_code IS NULL", [], (err, users) => {
         if (err) {
-            console.error("Error fetching users:", err);
             return;
         }
         
@@ -105,9 +87,7 @@ setTimeout(() => {
             const qrCode = generateQRCode("USER", phone);
             db.run("UPDATE users SET qr_code = ?, phone = ? WHERE id = ?", [qrCode, phone, user.id], (err2) => {
                 if (err2) {
-                    console.error(`Error updating user ${user.id}:`, err2);
                 } else {
-                    console.log(`Generated QR code for user ${user.id}`);
                 }
             });
         });
@@ -118,7 +98,6 @@ setTimeout(() => {
 setTimeout(() => {
     db.all("SELECT id, email FROM stores WHERE qr_code IS NULL", [], (err, stores) => {
         if (err) {
-            console.error("Error fetching stores:", err);
             return;
         }
         
@@ -127,9 +106,7 @@ setTimeout(() => {
             const qrCode = generateQRCode("STORE", phone);
             db.run("UPDATE stores SET qr_code = ?, phone = ? WHERE id = ?", [qrCode, phone, store.id], (err2) => {
                 if (err2) {
-                    console.error(`Error updating store ${store.id}:`, err2);
                 } else {
-                    console.log(`Generated QR code for store ${store.id}`);
                 }
             });
         });
@@ -137,6 +114,7 @@ setTimeout(() => {
 }, 2000);
 
 setTimeout(() => {
-    console.log("Migration completed!");
     db.close();
 }, 5000);
+
+
