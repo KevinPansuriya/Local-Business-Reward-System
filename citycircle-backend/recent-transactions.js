@@ -11,7 +11,7 @@ db.serialize(() => {
   stmt.run(1, 3, 5046, 26, "-6 days");
 
   stmt.finalize(() => {
-    console.log("✅ Inserted 3 recent transactions");
     db.close();
   });
 });
+

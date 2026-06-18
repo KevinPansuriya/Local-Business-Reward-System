@@ -1,4 +1,4 @@
-﻿// seed.js
+// seed.js
 const bcrypt = require("bcryptjs");
 const db = require("./db");
 
@@ -15,8 +15,6 @@ async function seed() {
          ) VALUES (?, ?, ?, ?, ?, ?, 0, 0)`,
                 ["user1@test.com", userHash, "Kevin", "ZONE_A", null, "STARTER"],
                 function (err) {
-                    if (err) console.error("Error inserting user:", err);
-                    else console.log("User inserted with id:", this.lastID);
                 }
             );
 
@@ -27,17 +25,15 @@ async function seed() {
          ) VALUES (?, ?, ?, ?, ?, ?)`,
                 ["coffee@grove.com", storeHash, "Grove Coffee", "ZONE_A", "coffee", 5],
                 function (err) {
-                    if (err) console.error("Error inserting store:", err);
-                    else console.log("Store inserted with id:", this.lastID);
                 }
             );
         });
 
-        db.close(() => console.log("Seeding done ✅"));
     } catch (e) {
-        console.error("Seed error:", e);
         db.close();
     }
 }
 
 seed();
+
+

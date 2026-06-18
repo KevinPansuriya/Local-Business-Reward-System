@@ -122,7 +122,7 @@ export default function StoreDashboard({ token }) {
 }
 
 const card = {
-    border: "1px solid #ddd",
+    border: "1px solid var(--cc-border)",
     padding: 16,
     borderRadius: 8,
     marginTop: 16,

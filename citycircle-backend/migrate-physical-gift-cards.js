@@ -1,7 +1,6 @@
 // Migration script to add physical gift card support
 const db = require("./db");
 
-console.log("Starting physical gift card migration...");
 
 const migrations = [
     // Add card_type and issued_at fields to gift_cards
@@ -24,8 +23,6 @@ const migrations = [
 // Run migrations sequentially
 function runMigrations(index) {
     if (index >= migrations.length) {
-        console.log(`\nPhysical gift card migration complete!`);
-        console.log(`✅ All migrations successful`);
         process.exit(0);
         return;
     }
@@ -35,14 +32,11 @@ function runMigrations(index) {
         if (err) {
             // Ignore "duplicate column" errors (column already exists)
             if (err.message.includes("duplicate column")) {
-                console.log(`Migration ${index + 1} skipped (column already exists)`);
                 runMigrations(index + 1);
             } else {
-                console.error(`Migration ${index + 1} failed:`, err.message);
                 process.exit(1);
             }
         } else {
-            console.log(`Migration ${index + 1} completed`);
             runMigrations(index + 1);
         }
     });
@@ -50,3 +44,5 @@ function runMigrations(index) {
 
 // Start migrations
 runMigrations(0);
+
+
